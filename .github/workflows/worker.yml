@@ -1,0 +1,19 @@
+# Deploys the API Worker on every push to main that touches worker/.
+# The MySQL schema is applied by hand once (README step 1), not by this workflow.
+# Needs repo secrets: CLOUDFLARE_API_TOKEN (Workers + Hyperdrive + R2 edit) and CLOUDFLARE_ACCOUNT_ID.
+name: Deploy API
+on:
+  push: { branches: [main], paths: ['worker/**'] }
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          preCommands: npm install
+          command: deploy

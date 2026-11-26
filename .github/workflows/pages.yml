@@ -1,0 +1,20 @@
+# Publishes the static site (the site/ folder) to GitHub Pages on every push to main.
+# One-time: repo Settings > Pages > Source = "GitHub Actions". Settings > Variables > Actions: API_URL = https://api.yourdomain.com
+name: Deploy site
+on:
+  push: { branches: [main], paths: ['site/**'] }
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.d.outputs.page_url }}' }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Point the site at your API
+        run: echo "window.NIMRA_API = '${{ vars.API_URL }}';" > site/js/config.js
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: d
+        uses: actions/deploy-pages@v4
