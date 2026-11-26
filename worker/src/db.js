@@ -18,11 +18,14 @@ function normalise(rows, types) {
 }
 
 async function tidb(env) {
-  const rawUrl = (env.DATABASE_URL && !env.DATABASE_URL.includes('@://'))
-    ? env.DATABASE_URL.trim()
-    : 'mysql://PoBGQ65Q1hMkT5E.root:4YWXdCmuoz4hGZ7A@://tidbcloud.com';
   const { connect } = await import('@tidbcloud/serverless');
-  const conn = connect({ url: rawUrl, fullResult: true });
+  const conn = connect({
+    host: '://tidbcloud.com',
+    username: 'PoBGQ65Q1hMkT5E.root',
+    password: '4YWXdCmuoz4hGZ7A',
+    database: 'nimra',
+    fullResult: true,
+  });
   const wrap = (x) => ({
     run: async (sql, args) => {
       const r = await x.execute(sql, args);
