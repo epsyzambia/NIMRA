@@ -20,7 +20,7 @@ function normalise(rows, types) {
 async function tidb(env) {
   const { connect } = await import('@tidbcloud/serverless');
   const conn = connect({
-    url: 'mysql://PoBGQ65Q1hMkT5E.root:YOUR_NEW_PASSWORD@gateway01.ap-northeast-1.prod.aws.tidbcloud.com/nimra',
+    url: 'mysql://PoBGQ65Q1hMkT5E.root:YEHAR5hrmumziAlt@gateway01.ap-northeast-1.prod.aws.tidbcloud.com/nimra',
     fullResult: true,
   });
 
