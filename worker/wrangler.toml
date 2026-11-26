@@ -1,16 +1,12 @@
 name = "nimra-api"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
-
-# Database: TiDB Cloud Serverless over HTTPS. Its address is the secret DATABASE_URL (not stored here):
-#   wrangler secret put DATABASE_URL     ->  mysql://USER:PASSWORD@HOST/nimra
-
-# api.example.com is served by this Worker (the domain must use Cloudflare DNS)
-routes = [{ pattern = "api.example.com", custom_domain = true }]
+keep_vars = true
 
 [vars]
-# the address of your static site (GitHub Pages custom domain). Several: comma separated.
-ALLOWED_ORIGINS = "https://app.example.com"
+# Replace with your actual GitHub Pages URL (e.g., https://github.io)
+ALLOWED_ORIGINS = "https://github.io"
+
 # lets the sign-in cookie work between app.example.com and api.example.com
 COOKIE_DOMAIN = ".example.com"
 
