@@ -6,8 +6,3 @@ keep_vars = true
 [vars]
 # Replace with your actual GitHub Pages URL (e.g., https://github.io)
 ALLOWED_ORIGINS = "https://github.io"
-
-# lets the sign-in cookie work between app.example.com and api.example.com
-COOKIE_DOMAIN = ".example.com"
-
-# Secret (not stored here):  wrangler secret put SETUP_TOKEN
