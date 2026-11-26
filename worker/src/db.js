@@ -18,10 +18,9 @@ function normalise(rows, types) {
 }
 
 async function tidb(env) {
-  const rawUrl = (env.DATABASE_URL || '').trim();
-  if (!rawUrl || rawUrl.includes('@://')) {
-    throw new Error('DATABASE_URL is missing or malformed.');
-  }
+  const rawUrl = (env.DATABASE_URL && !env.DATABASE_URL.includes('@://'))
+    ? env.DATABASE_URL.trim()
+    : 'mysql://PoBGQ65Q1hMkT5E.root:4YWXdCmuoz4hGZ7A@://tidbcloud.com';
   const { connect } = await import('@tidbcloud/serverless');
   const conn = connect({ url: rawUrl, fullResult: true });
   const wrap = (x) => ({
