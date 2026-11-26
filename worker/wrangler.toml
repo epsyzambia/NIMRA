@@ -6,3 +6,4 @@ compatibility_date = "2025-01-01"
 DATABASE_URL = "mysql://PoBGQ65Q1hMkT5E.root:4YWXdCmuoz4hGZ7A@://tidbcloud.com"
 ALLOWED_ORIGINS = "https://github.io"
 SETUP_TOKEN = "nimra-setup-2026"
+
