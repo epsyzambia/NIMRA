@@ -96,7 +96,7 @@ const authed = (roles, handler) => async (ctx) => { await currentUser(ctx, roles
 const body = async (ctx) => { try { return await ctx.request.json(); } catch { throw bad('Send the form as JSON.'); } };
 
 const cookie = (value, maxAge, env) =>
-  `sid=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}` + (env.COOKIE_DOMAIN ? `; Domain=${env.COOKIE_DOMAIN}` : '');
+  `sid=${value}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}` + (env.COOKIE_DOMAIN ? `; Domain=${env.COOKIE_DOMAIN}` : '');
 
 async function audit(db, userId, action, entity, entityId, detail) {
   await db.prepare('INSERT INTO audit_log(user_id,action,entity,entity_id,detail) VALUES(?,?,?,?,?)').bind(userId, action, entity, entityId ?? null, detail ?? null).run();
