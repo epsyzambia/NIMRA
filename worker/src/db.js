@@ -18,9 +18,12 @@ function normalise(rows, types) {
 }
 
 async function tidb(env) {
-  if (!env.DATABASE_URL) throw new Error('The DATABASE_URL secret is missing. See README step 3.');
+  const rawUrl = (env.DATABASE_URL || '').trim();
+  if (!rawUrl || rawUrl.includes('@://')) {
+    throw new Error('DATABASE_URL is missing or malformed.');
+  }
   const { connect } = await import('@tidbcloud/serverless');
-  const conn = connect({ url: env.DATABASE_URL, fullResult: true });
+  const conn = connect({ url: rawUrl, fullResult: true });
   const wrap = (x) => ({
     run: async (sql, args) => {
       const r = await x.execute(sql, args);
