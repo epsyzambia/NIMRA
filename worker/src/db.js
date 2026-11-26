@@ -22,7 +22,7 @@ async function tidb(env) {
   const conn = connect({
     host: '://tidbcloud.com',
     username: 'PoBGQ65Q1hMkT5E.root',
-    password: '4YWXdCmuoz4hGZ7A',
+    password: 'lZKQG0VcMTegDLLI',
     database: 'nimra',
     fullResult: true,
   });
