@@ -7,6 +7,19 @@ DATABASE_URL = "mysql://PoBGQ65Q1hMkT5E.root:4YWXdCmuoz4hGZ7A@://tidbcloud.com"
 ALLOWED_ORIGINS = "https://epsyzambia.github.io"
 SETUP_TOKEN = "nimra-setup-2026"
 
+# ...
 [observability.logs]
-enabled = false
+enabled = true
+head_sampling_rate = 1
 invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
+
+[observability.issue_detection]
+enabled = false
+# ...
+
