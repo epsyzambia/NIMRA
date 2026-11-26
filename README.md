@@ -1,17 +1,17 @@
-# NIMRA on Cloudflare (GitHub Pages + Workers + Hyperdrive + MySQL + R2)
+# NIMRA on Cloudflare (GitHub Pages + Workers + Hyperdrive + MySQL)
 
 ```
  yourdomain.com / app.yourdomain.com      api.yourdomain.com
  ┌──────────────────────────┐   fetch     ┌────────────────────────┐   ┌─────────────┐
  │ GitHub Pages: site/      │ ──────────▶ │ Cloudflare Worker      │──▶│ Hyperdrive  │──▶ your MySQL 8
  │ plain HTML + JS          │  (cookie)   │ worker/src/index.js    │   └─────────────┘   (any host)
- └──────────────────────────┘             │                        │──▶ R2: research PDFs
+ └──────────────────────────┘             │                        │   (research PDFs too)
                                           └────────────────────────┘
 ```
 GitHub Pages can only host static files, so all logic (sign-in, rules, database, files) runs in the Worker.
 
 ## What is in this first version (core)
-Sign-in with phone + PIN and roles **Admin / Institution / Supplier** · accounts (admin) · notify a procurement · supplier records items (cost, price, **barcode optional**) · **institution supplier-margin limit** (blocks prices above it) · admin **reviews, approves or returns with comments** · reference prices (always per single item) with **PDF research stored in R2** · institution is told **NIMRA is researching** after the supplier adds items · notifications · **wastage page with waste and margin per supplier and a year filter that rolls over by itself** · audit log.
+Sign-in with phone + PIN and roles **Admin / Institution / Supplier** · accounts (admin) · notify a procurement · supplier records items (cost, price, **barcode optional**) · **institution supplier-margin limit** (blocks prices above it) · admin **reviews, approves or returns with comments** · reference prices (always per single item) with **PDF research stored in the database** · institution is told **NIMRA is researching** after the supplier adds items · notifications · **wastage page with waste and margin per supplier and a year filter that rolls over by itself** · audit log.
 
 Not yet moved from the ASP.NET version: wallet and ledger, invoice discounting, surveillance, newsletter, help desk, cartels/blacklist, auctions, agents, training. They are planned as the next rounds, in this same Worker.
 
@@ -26,12 +26,11 @@ You need: a domain on Cloudflare DNS, a GitHub repo, Node 18+, and a **MySQL 8 (
    mysql -h HOST -u ADMINUSER -p nimra < worker/migrations/0001_init.sql
    ```
    The server must accept connections from the internet (use TLS; ideally allow only Cloudflare's addresses, or use a Cloudflare Tunnel with Hyperdrive if the server is private).
-3. **Connect Hyperdrive and create the file bucket**
+3. **Connect Hyperdrive**
    ```
    cd worker && npm install
    npx wrangler login
    npx wrangler hyperdrive create nimra --connection-string="mysql://nimra:LONG-RANDOM-PASSWORD@HOST:3306/nimra"
-   npx wrangler r2 bucket create nimra-files
    ```
    Copy the Hyperdrive `id` into `wrangler.toml`. Then edit `ALLOWED_ORIGINS` = `https://app.yourdomain.com`, `COOKIE_DOMAIN` = `.yourdomain.com`, and the `routes` pattern `api.yourdomain.com`.
 4. **Secret for the first admin**: `npx wrangler secret put SETUP_TOKEN` (any long random text), then `npx wrangler deploy`.
@@ -49,7 +48,7 @@ The site and the API must share the same parent domain (`app.` and `api.` of `yo
 ## Try it on your computer first (no Cloudflare account needed)
 ```
 cd worker
-npm run test     # 33 checks of the real API code. A fake MySQL connection (SQLite underneath) and a Map stand in for MySQL and R2
+npm run test     # 33 checks of the real API code. A fake MySQL connection (SQLite underneath) stands in for MySQL
 npm run demo     # site http://localhost:8080  (admin 0971000000/1234, institution 0972000001/2222, supplier 0973000001/3333)
 ```
 (Needs Node 22+ for the `node:sqlite` stand-in. Deployed Workers do not need it. **This does not test MySQL itself**: the first real MySQL run is when you load `migrations/0001_init.sql` and sign in. If a query fails, the Worker log (`npx wrangler tail`) shows the MySQL error.)
@@ -61,7 +60,7 @@ npm run demo     # site http://localhost:8080  (admin 0971000000/1234, instituti
 | Institution supplier margin limit | `institution_settings.margin_limit_percent`, falls back to global `MarkupMaxPercent` (30). Items priced over `cost × (1 + limit)` are refused with the item named |
 | Admin returns with comments | `POST /api/notices/:id/return`; supplier and institution notified; supplier edits and resubmits |
 | Reference price is for ONE item | stated on every price form and table; stored as `unit_price` |
-| PDF with research | multipart upload, PDF only, 10 MB, key `research/<uuid>` in R2, downloaded through the API (sign-in required; unpublished files are admin-only) |
+| PDF with research | multipart upload, PDF only, 5 MB, stored in the `price_files` table (no file-storage service, no card needed), downloaded through the API (sign-in required; unpublished files are admin-only) |
 | Waste and margin | waste = (price − market price) × qty when above market; margin = (price − cost) × qty. Market price = average of published reference prices with the same item name |
 | Year filter | defaults to the current year computed per request, so it rolls over on 1 January; other years via chips |
 | Lock-out | 5 wrong PINs lock a phone for 15 minutes |
@@ -75,4 +74,4 @@ npm run demo     # site http://localhost:8080  (admin 0971000000/1234, instituti
 - Existing data from SQL Server is not migrated; start fresh or ask for an export script.
 
 ## Cost note
-Workers, Hyperdrive and R2 have free tiers; your MySQL host is a separate cost that cover a pilot; GitHub Pages is free for public repos (private repos need a paid GitHub plan). Check current Cloudflare pricing before launch.
+Workers and Hyperdrive have free tiers that cover a pilot (no card is needed for Workers Free); your MySQL host is a separate cost; GitHub Pages is free for public repos (private repos need a paid GitHub plan). Check current Cloudflare pricing before launch.

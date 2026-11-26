@@ -1,11 +1,19 @@
-// NIMRA procurement API for Cloudflare Workers.  MySQL (through Hyperdrive) = database, R2 = PDF files.
+// NIMRA procurement API for Cloudflare Workers.  MySQL (through Hyperdrive) = database, including the research PDFs.
 import { openDb } from './db.js';
 import { HttpError, bad, forbidden, notFound, json, randomHex, sha256, hashPin, timingSafeEqual, normalisePhone, parseCookies, round2, num, text } from './lib.js';
 
 const SESSION_DAYS = 14;
 const MAX_FAILS = 5;
 const LOCK_MINUTES = 15;
-const MAX_PDF = 10 * 1024 * 1024;
+const MAX_PDF = 5 * 1024 * 1024;
+// PDFs are kept in the database (table price_files), so no file-storage service is needed.
+async function readPdf(file) {
+  if (file.size > MAX_PDF) throw bad('The PDF is larger than 5 MB.');
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) throw bad('Attach a PDF file.');
+  const data = Buffer.from(await file.arrayBuffer());
+  if (data.subarray(0, 5).toString('latin1') !== '%PDF-') throw bad('That file is not a PDF.');
+  return data;
+}
 
 // ---------------------------------------------------------------- routing
 const routes = [];
@@ -364,7 +372,7 @@ route('POST', '/api/notices/:id/cancel', authed(['Institution'], async (ctx) => 
   return json({ ok: true });
 }));
 
-// ---------------------------------------------------------------- reference prices + PDF research (R2)
+// ---------------------------------------------------------------- reference prices + PDF research (stored in the database)
 route('GET', '/api/prices', authed(null, async (ctx) => {
   const q = (ctx.url.searchParams.get('q') || '').trim().toLowerCase();
   const adminSeesAll = ctx.user.role === 'Admin';
@@ -393,18 +401,14 @@ route('POST', '/api/prices', authed(['Admin'], async (ctx) => {
   if (!sourceLink && !sourceContact) throw bad('Give a link or a contact for the source, so the price can be checked.');
   const noticeId = f.noticeId ? Number(f.noticeId) : null;
   if (noticeId && !(await ctx.db.prepare('SELECT 1 FROM notices WHERE id=?').bind(noticeId).first())) throw bad('That procurement was not found.');
-  let fileKey = null; let fileName = null;
-  if (file) {
-    if (file.size > MAX_PDF) throw bad('The PDF is larger than 10 MB.');
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) throw bad('Attach a PDF file.');
-    fileKey = `research/${crypto.randomUUID()}`; fileName = file.name.slice(-120);
-    await ctx.env.FILES.put(fileKey, file.stream(), { httpMetadata: { contentType: 'application/pdf' } });
-  }
+  let pdf = null; const fileName = file ? file.name.slice(-120) : null;
+  if (file) pdf = await readPdf(file);
   const published = f.published === true || f.published === 'true' || f.published === 'on' ? 1 : 0;
   const r = await ctx.db.prepare(
-    `INSERT INTO reference_prices(notice_id,item_name,unit,unit_price,source_name,source_link,source_contact,notes,published,file_key,file_name,added_by)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(noticeId, itemName, text(f.unit, 'Unit', { max: 30, required: false }), unitPrice, sourceName, sourceLink, sourceContact,
-      text(f.notes, 'Notes', { max: 500, required: false }), published, fileKey, fileName, ctx.user.id).run();
+    `INSERT INTO reference_prices(notice_id,item_name,unit,unit_price,source_name,source_link,source_contact,notes,published,file_name,added_by)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(noticeId, itemName, text(f.unit, 'Unit', { max: 30, required: false }), unitPrice, sourceName, sourceLink, sourceContact,
+      text(f.notes, 'Notes', { max: 500, required: false }), published, fileName, ctx.user.id).run();
+  if (pdf) await ctx.db.prepare('INSERT INTO price_files(price_id,data) VALUES(?,?)').bind(r.meta.last_row_id, pdf).run();
   if (noticeId && published) {
     const n = await ctx.db.prepare('SELECT institution_id, title FROM notices WHERE id=?').bind(noticeId).first();
     await notifyOrg(ctx.db, n.institution_id, 'RESEARCH', `Market research was published for "${n.title}".`, `#/notice/${noticeId}`);
@@ -423,24 +427,22 @@ route('POST', '/api/prices/:id/file', authed(['Admin'], async (ctx) => {
   const form = await ctx.request.formData();
   const file = form.get('file');
   if (!file || typeof file === 'string' || file.size === 0) throw bad('Choose a PDF file.');
-  if (file.size > MAX_PDF) throw bad('The PDF is larger than 10 MB.');
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) throw bad('Attach a PDF file.');
-  const p = await ctx.db.prepare('SELECT file_key FROM reference_prices WHERE id=?').bind(ctx.params.id).first();
+  const p = await ctx.db.prepare('SELECT id FROM reference_prices WHERE id=?').bind(ctx.params.id).first();
   if (!p) throw notFound();
-  const key = `research/${crypto.randomUUID()}`;
-  await ctx.env.FILES.put(key, file.stream(), { httpMetadata: { contentType: 'application/pdf' } });
-  if (p.file_key) await ctx.env.FILES.delete(p.file_key);
-  await ctx.db.prepare('UPDATE reference_prices SET file_key=?, file_name=? WHERE id=?').bind(key, file.name.slice(-120), ctx.params.id).run();
+  const pdf = await readPdf(file);
+  await ctx.db.batch([
+    ctx.db.prepare('REPLACE INTO price_files(price_id,data) VALUES(?,?)').bind(p.id, pdf),
+    ctx.db.prepare('UPDATE reference_prices SET file_name=? WHERE id=?').bind(file.name.slice(-120), p.id)]);
   return json({ ok: true });
 }));
 
 route('GET', '/api/prices/:id/file', authed(null, async (ctx) => {
-  const p = await ctx.db.prepare('SELECT file_key, file_name, published, notice_id FROM reference_prices WHERE id=?').bind(ctx.params.id).first();
-  if (!p || !p.file_key) throw notFound('No document.');
+  const p = await ctx.db.prepare('SELECT file_name, published FROM reference_prices WHERE id=?').bind(ctx.params.id).first();
+  if (!p || !p.file_name) throw notFound('No document.');
   if (ctx.user.role !== 'Admin' && !p.published) throw notFound('No document.');
-  const obj = await ctx.env.FILES.get(p.file_key);
-  if (!obj) throw notFound('The file is missing.');
-  return new Response(obj.body, { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${p.file_name.replace(/[^\w.\- ]/g, '_')}"`, 'cache-control': 'private, max-age=300' } });
+  const f = await ctx.db.prepare('SELECT data FROM price_files WHERE price_id=?').bind(ctx.params.id).first();
+  if (!f) throw notFound('The file is missing.');
+  return new Response(f.data, { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${p.file_name.replace(/[^\w.\- ]/g, '_')}"`, 'cache-control': 'private, max-age=300', 'x-content-type-options': 'nosniff' } });
 }));
 
 // ---------------------------------------------------------------- institution settings and wastage

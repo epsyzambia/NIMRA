@@ -3,10 +3,10 @@ import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import worker from '../src/index.js';
-import { FILES } from './shim.mjs';
+import './shim.mjs';
 
 const SITE = new URL('../../site/', import.meta.url).pathname;
-const env = { FILES, ALLOWED_ORIGINS: 'http://localhost:8080', COOKIE_DOMAIN: '', SETUP_TOKEN: 'demo' };
+const env = { ALLOWED_ORIGINS: 'http://localhost:8080', COOKIE_DOMAIN: '', SETUP_TOKEN: 'demo' };
 
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);

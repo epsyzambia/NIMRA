@@ -87,7 +87,7 @@ CREATE TABLE notice_events(
 );
 CREATE INDEX ix_events_notice ON notice_events(notice_id);
 
--- reference prices: always the price of ONE single item. Optional PDF lives in R2.
+-- reference prices: always the price of ONE single item. Optional PDF in price_files.
 CREATE TABLE reference_prices(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   notice_id INTEGER REFERENCES notices(id),
@@ -99,7 +99,6 @@ CREATE TABLE reference_prices(
   source_contact TEXT,
   notes TEXT,
   published INTEGER NOT NULL DEFAULT 0,
-  file_key TEXT,
   file_name TEXT,
   added_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -128,3 +127,5 @@ CREATE TABLE audit_log(
   detail TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE price_files(price_id INTEGER PRIMARY KEY REFERENCES reference_prices(id), data BLOB NOT NULL);

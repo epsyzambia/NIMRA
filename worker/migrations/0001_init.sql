@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS notice_events(
   CONSTRAINT fk_events_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- reference prices: always the price of ONE single item. The optional PDF lives in R2 (file_key).
+-- reference prices: always the price of ONE single item. The optional PDF is in price_files.
 CREATE TABLE IF NOT EXISTS reference_prices(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   notice_id INT UNSIGNED NULL,
@@ -124,7 +124,6 @@ CREATE TABLE IF NOT EXISTS reference_prices(
   source_contact VARCHAR(200) NULL,
   notes VARCHAR(500) NULL,
   published TINYINT(1) NOT NULL DEFAULT 0,
-  file_key VARCHAR(100) NULL,
   file_name VARCHAR(120) NULL,
   added_by INT UNSIGNED NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -157,4 +156,11 @@ CREATE TABLE IF NOT EXISTS audit_log(
   detail VARCHAR(1000) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_audit_entity (entity, entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- research PDFs (max 5 MB each, checked by the Worker). Needs max_allowed_packet of at least 8 MB on the server (MySQL 8 default is 64 MB).
+CREATE TABLE IF NOT EXISTS price_files(
+  price_id INT UNSIGNED NOT NULL PRIMARY KEY,
+  data LONGBLOB NOT NULL,
+  CONSTRAINT fk_pfiles_price FOREIGN KEY (price_id) REFERENCES reference_prices(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

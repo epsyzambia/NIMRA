@@ -1,6 +1,5 @@
 // Local stand-ins so the real Worker code runs on your computer WITHOUT MySQL:
 //  - a fake "mysql2" connection backed by node:sqlite (translates the few MySQL-only bits the Worker uses)
-//  - a Map for R2.
 // This checks the application logic. It does NOT check the MySQL SQL or the migration: run those against a real MySQL.
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
@@ -14,6 +13,7 @@ function translate(sql) {
   let q = sql.replace(/`/g, '').replace(/\bNOW\(\)/g, "datetime('now')").replace(/\bUTC_TIMESTAMP\(\)/g, "datetime('now')");
   q = q.replace(/\bINSERT IGNORE\b/, 'INSERT OR IGNORE');
   q = q.replace(/\bSTART TRANSACTION\b/, 'BEGIN');
+  q = q.replace(/\bREPLACE INTO\b/, 'INSERT OR REPLACE INTO');
   const m = /INSERT INTO (\w+)[\s\S]*ON DUPLICATE KEY UPDATE/.exec(q);
   if (m) q = q.replace('ON DUPLICATE KEY UPDATE', `ON CONFLICT(${conflictKey[m[1]]}) DO UPDATE SET`).replace(/VALUES\((\w+)\)/g, 'excluded.$1');
   q = q.replace(/YEAR\(([^()]*(?:\([^()]*\))?[^()]*)\)/g, "CAST(strftime('%Y', $1) AS INTEGER)");
@@ -33,9 +33,3 @@ const fakeConn = {
 };
 setConnector(async () => fakeConn);
 
-export const store = new Map();
-export const FILES = {
-  put: async (k, stream) => { store.set(k, Buffer.from(await new Response(stream).arrayBuffer())); },
-  get: async (k) => (store.has(k) ? { body: store.get(k) } : null),
-  delete: async (k) => { store.delete(k); },
-};

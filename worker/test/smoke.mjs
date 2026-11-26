@@ -1,9 +1,9 @@
-// End-to-end smoke test. Runs the real Worker code with a fake MySQL connection (SQLite underneath) and a Map for R2. Not a MySQL test.
+// End-to-end smoke test. Runs the real Worker code with a fake MySQL connection (SQLite underneath). Not a MySQL test.
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 
-import { FILES } from './shim.mjs';
-const env = { FILES, ALLOWED_ORIGINS: 'https://app.example.com', COOKIE_DOMAIN: '.example.com', SETUP_TOKEN: 'secret-setup' };
+import './shim.mjs';
+const env = { ALLOWED_ORIGINS: 'https://app.example.com', COOKIE_DOMAIN: '.example.com', SETUP_TOKEN: 'secret-setup' };
 const ORIGIN = 'https://app.example.com';
 
 function client() {
@@ -61,7 +61,7 @@ let d = (await inst('GET', `/api/notices/${nid}`)).body; assert.equal(d.waitingF
 const form = new FormData();
 for (const [k, v] of Object.entries({ itemName: 'a4 PAPER ream', unit: 'ream', unitPrice: '45.50', sourceName: 'Shoprite', sourceLink: 'https://example.com/p', noticeId: String(nid), published: 'true' })) form.append(k, v);
 form.append('file', new Blob(['%PDF-1.4 test'], { type: 'application/pdf' }), 'research.pdf');
-const pr = await admin('POST', '/api/prices', undefined, form); ok(pr, 'price'); step('admin adds a reference price with a PDF (stored in R2)');
+const pr = await admin('POST', '/api/prices', undefined, form); ok(pr, 'price'); step('admin adds a reference price with a PDF (stored in the database)');
 assert.equal((await admin('POST', '/api/prices', { itemName: 'x', unitPrice: 1, sourceName: 's' })).status, 400); step('a price needs a link or contact');
 const file = await inst('GET', `/api/prices/${pr.body.id}/file`); ok(file, 'file'); assert.equal(file.headers.get('content-type'), 'application/pdf'); assert.match(file.body.toString(), /%PDF/); step('institution downloads the published PDF');
 d = (await supp('GET', `/api/notices/${nid}`)).body; assert.equal(d.lines[0].benchmark, 45.5); assert.equal(d.research.length, 1); assert.equal(d.waitingForResearch, false); step('benchmark matches the item name (case-insensitive)');

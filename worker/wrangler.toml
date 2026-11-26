@@ -10,11 +10,6 @@ compatibility_flags = ["nodejs_compat"]      # needed by the mysql2 driver
 binding = "HYPERDRIVE"
 id = "PASTE-YOUR-HYPERDRIVE-ID"
 
-# 3. wrangler r2 bucket create nimra-files
-[[r2_buckets]]
-binding = "FILES"
-bucket_name = "nimra-files"
-
 # api.example.com is served by this Worker (the domain must use Cloudflare DNS)
 routes = [{ pattern = "api.example.com", custom_domain = true }]
 
