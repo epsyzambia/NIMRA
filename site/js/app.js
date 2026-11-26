@@ -80,7 +80,7 @@ pages.notices = async (q) => {
 
 pages.new = async () => {
   const sup = await api('GET', '/api/suppliers');
-  shell('Notify a procurement', html`<div class="card"><form id="f"><div class="row">
+  shell('Notify a procurement', html`<div class="card"><form id="f"><div class="fgrid">
     <div><label>What are you buying?</label><input name="title" required></div>
     <div><label>Supplier</label><select name="supplierId" required><option value="">Choose...</option>${sup.map((s) => html`<option value="${s.id}">${s.name}</option>`)}</select></div>
     <div><label>Quantity</label><input name="quantity" inputmode="decimal" required></div>
@@ -106,7 +106,7 @@ pages.notice = async (q, id) => {
   let body = html`<div class="next"><b>Next:</b> ${n.next}</div>
     ${d.waitingForResearch && role === 'Institution' ? html`<div class="flash ok">NIMRA is researching market prices for these items. You will be told when the research is published.</div>` : ''}
     ${n.status === 'RETURNED' && lastReturn ? html`<div class="flash err"><b>NIMRA's comment:</b> ${lastReturn.comment}</div>` : ''}
-    <div class="card"><div class="row"><div><span class="muted">Item</span><br><b>${n.title}</b></div><div><span class="muted">Quantity</span><br>${n.quantity} ${n.unit}</div>
+    <div class="card"><div class="fgrid"><div><span class="muted">Item</span><br><b>${n.title}</b></div><div><span class="muted">Quantity</span><br>${n.quantity} ${n.unit}</div>
       <div><span class="muted">Institution</span><br>${n.institution}</div><div><span class="muted">Supplier</span><br>${n.supplier}</div><div><span class="muted">Needed by</span><br>${n.needed_by}</div>
       <div><span class="muted">Status</span><br><span class="pill ${n.status}">${STATUS[n.status]}</span></div></div></div>`;
   if (canRecord) {
@@ -146,7 +146,7 @@ pages.notice = async (q, id) => {
 };
 
 function priceForm(noticeId, itemName) {
-  return html`<form class="pf" enctype="multipart/form-data"><input type="hidden" name="noticeId" value="${noticeId ?? ''}"><div class="row">
+  return html`<form class="pf" enctype="multipart/form-data"><input type="hidden" name="noticeId" value="${noticeId ?? ''}"><div class="fgrid">
     <div><label>Item name</label><input name="itemName" value="${itemName ?? ''}" required></div>
     <div><label>Price of ONE single item (K)</label><input name="unitPrice" inputmode="decimal" required></div>
     <div><label>Unit</label><input name="unit" placeholder="each"></div>
@@ -201,7 +201,7 @@ pages.wastage = async (q) => {
 
 pages.settings = async () => {
   const s = await api('GET', '/api/institution/settings');
-  shell('Limits', html`<div class="card"><form id="f"><div class="row">
+  shell('Limits', html`<div class="card"><form id="f"><div class="fgrid">
     <div><label>Supplier margin limit (% over the supplier's cost)</label><input name="marginLimitPercent" inputmode="decimal" value="${s.marginLimitPercent ?? ''}" placeholder="${s.globalMargin} (NIMRA default)"></div>
     <div><label>Wastage limit (%)</label><input name="wastageThresholdPercent" inputmode="decimal" value="${s.wastageThresholdPercent ?? ''}" placeholder="${s.globalWastage} (NIMRA default)"></div></div>
     <p class="muted">Suppliers cannot send you items priced above the margin limit. Leave empty to use NIMRA's default.</p><p><button>Save</button></p></form></div>`);
@@ -210,7 +210,7 @@ pages.settings = async () => {
 
 pages.accounts = async () => {
   const rows = await api('GET', '/api/accounts');
-  shell('Accounts', html`<div class="card"><h3>New account</h3><form id="f"><div class="row">
+  shell('Accounts', html`<div class="card"><h3>New account</h3><form id="f"><div class="fgrid">
     <div><label>Type</label><select name="kind"><option>Institution</option><option>Supplier</option></select></div>
     <div><label>Organisation name</label><input name="org" required></div><div><label>Contact name</label><input name="name" required></div>
     <div><label>Phone</label><input name="phone" inputmode="tel" required></div><div><label>PIN (4 to 8 digits)</label><input name="pin" inputmode="numeric" required></div></div><p><button>Create</button></p></form></div>

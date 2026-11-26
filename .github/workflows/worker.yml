@@ -1,6 +1,6 @@
 # Deploys the API Worker on every push to main that touches worker/.
 # The MySQL schema is applied by hand once (README step 1), not by this workflow.
-# Needs repo secrets: CLOUDFLARE_API_TOKEN (Workers + Hyperdrive edit) and CLOUDFLARE_ACCOUNT_ID.
+# Needs repo secrets: CLOUDFLARE_API_TOKEN (Workers edit) and CLOUDFLARE_ACCOUNT_ID.
 name: Deploy API
 on:
   push: { branches: [main], paths: ['worker/**'] }

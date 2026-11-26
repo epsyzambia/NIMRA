@@ -1,14 +1,9 @@
 name = "nimra-api"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
-compatibility_flags = ["nodejs_compat"]      # needed by the mysql2 driver
 
-# 1. Create the MySQL database and run migrations/0001_init.sql on it (README step 1)
-# 2. wrangler hyperdrive create nimra --connection-string="mysql://USER:PASSWORD@HOST:3306/nimra"
-#    -> paste the id it prints below
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "PASTE-YOUR-HYPERDRIVE-ID"
+# Database: TiDB Cloud Serverless over HTTPS. Its address is the secret DATABASE_URL (not stored here):
+#   wrangler secret put DATABASE_URL     ->  mysql://USER:PASSWORD@HOST/nimra
 
 # api.example.com is served by this Worker (the domain must use Cloudflare DNS)
 routes = [{ pattern = "api.example.com", custom_domain = true }]

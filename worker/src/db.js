@@ -1,47 +1,60 @@
-// MySQL access from a Worker through Cloudflare Hyperdrive.
-// Hyperdrive pools connections near your database; the Worker opens one connection per request and closes it afterwards.
-// The small prepare/bind/first/all/run/batch API below keeps the route code short and always uses ? placeholders.
+// TiDB Cloud Serverless over HTTPS (driver: @tidbcloud/serverless). No TCP sockets, no Hyperdrive.
+// The secret DATABASE_URL looks like  mysql://USER:PASSWORD@HOST/nimra   (no port needed).
+// A small prepare/bind/first/all/run/batch API keeps the route code short and always uses ? placeholders.
 let connector = null;
 export const setConnector = (fn) => { connector = fn; };          // tests only
 
-async function connect(env) {
-  if (connector) return connector(env);
-  const { createConnection } = await import('mysql2/promise');
-  const h = env.HYPERDRIVE;
-  if (!h) throw new Error('The HYPERDRIVE binding is missing. See README step 3.');
-  const conn = await createConnection({
-    host: h.host, user: h.user, password: h.password, database: h.database, port: h.port,
-    disableEval: true,        // Workers do not allow eval()
-    dateStrings: true,        // DATETIME comes back as 'YYYY-MM-DD HH:MM:SS', not a Date
-    decimalNumbers: true,     // DECIMAL comes back as a number, not a string
+const NUMERIC = /^(NEW)?DECIMAL$|^(DOUBLE|FLOAT|REAL)$|INT(EGER)?(\sUNSIGNED)?$|^(TINY|SHORT|LONG|LONGLONG|INT24|YEAR)$/i;
+function normalise(rows, types) {
+  return (rows || []).map((row) => {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (typeof v === 'string' && types && NUMERIC.test(String(types[k] || '')) && v.trim() !== '' && !Number.isNaN(Number(v))) out[k] = Number(v);
+      else if (v instanceof Date) out[k] = v.toISOString().replace('T', ' ').slice(0, 19);
+      else out[k] = v;
+    }
+    return out;
   });
-  await conn.query("SET time_zone = '+00:00'");   // all stored times are UTC
-  return conn;
+}
+
+async function tidb(env) {
+  if (!env.DATABASE_URL) throw new Error('The DATABASE_URL secret is missing. See README step 3.');
+  const { connect } = await import('@tidbcloud/serverless');
+  const conn = connect({ url: env.DATABASE_URL, fullResult: true });
+  const wrap = (x) => ({
+    run: async (sql, args) => {
+      const r = await x.execute(sql, args);
+      return { rows: normalise(r.rows, r.types), insertId: Number(r.lastInsertId || 0), affected: Number(r.rowsAffected || 0) };
+    },
+  });
+  return {
+    ...wrap(conn),
+    begin: async () => { const tx = await conn.begin(); return { ...wrap(tx), commit: () => tx.commit(), rollback: () => tx.rollback() }; },
+  };
 }
 
 const clean = (a) => a.map((v) => (v === undefined ? null : v));
 
-function statement(conn, sql, args = []) {
-  const s = {
+function statement(c, sql, args = []) {
+  return {
     sql, args,
-    bind: (...a) => statement(conn, sql, clean(a)),
-    first: async () => { const [rows] = await conn.query(sql, args); return rows[0] ?? null; },
-    all: async () => { const [rows] = await conn.query(sql, args); return { results: rows }; },
-    run: async () => { const [r] = await conn.query(sql, args); return { meta: { last_row_id: Number(r.insertId), changes: r.affectedRows } }; },
+    bind: (...a) => statement(c, sql, clean(a)),
+    first: async () => (await c.run(sql, args)).rows[0] ?? null,
+    all: async () => ({ results: (await c.run(sql, args)).rows }),
+    run: async () => { const r = await c.run(sql, args); return { meta: { last_row_id: r.insertId, changes: r.affected } }; },
   };
-  return s;
 }
 
-// Opens a connection and returns { db, close }. batch() is a real transaction: all statements or none.
+// Returns { db, close }. batch() is a real transaction: every statement or none.
 export async function openDb(env) {
-  const conn = await connect(env);
+  const c = await (connector ? connector(env) : tidb(env));
   const db = {
-    prepare: (sql) => statement(conn, sql),
+    prepare: (sql) => statement(c, sql),
     batch: async (list) => {
-      await conn.query('START TRANSACTION');
-      try { for (const s of list) await conn.query(s.sql, s.args); await conn.query('COMMIT'); }
-      catch (e) { try { await conn.query('ROLLBACK'); } catch { /* connection already gone */ } throw e; }
+      const tx = await c.begin();
+      try { for (const s of list) await tx.run(s.sql, s.args); await tx.commit(); }
+      catch (e) { try { await tx.rollback(); } catch { /* already gone */ } throw e; }
     },
   };
-  return { db, close: async () => { try { await conn.end(); } catch { /* ignore */ } } };
+  return { db, close: async () => {} };
 }

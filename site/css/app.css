@@ -1,8 +1,18 @@
+/* Bootstrap 5 does the components (buttons, forms, tables, alerts). This file is only the green theme and the page layout. */
+:root{--bs-primary:#00a884;--bs-primary-rgb:0,168,132;--bs-success:#00a884;--bs-success-rgb:0,168,132;--bs-link-color:#00806a;--bs-link-hover-color:#075e54;--bs-body-bg:#f2f8f5;--bs-body-color:#17332c;--bs-focus-ring-color:rgba(0,168,132,.25)}
+.btn-success{--bs-btn-bg:#00a884;--bs-btn-border-color:#00a884;--bs-btn-hover-bg:#00906f;--bs-btn-hover-border-color:#00906f;--bs-btn-active-bg:#007f65;--bs-btn-active-border-color:#007f65;--bs-btn-disabled-bg:#00a884;--bs-btn-disabled-border-color:#00a884}
+.btn-outline-success{--bs-btn-color:#00806a;--bs-btn-border-color:#00a884;--bs-btn-hover-bg:#00a884;--bs-btn-hover-border-color:#00a884;--bs-btn-active-bg:#00906f;--bs-btn-active-border-color:#00906f}
+.form-control:focus,.form-select:focus{border-color:#00a884;box-shadow:0 0 0 .2rem rgba(0,168,132,.25)}
+.form-check-input:checked{background-color:#00a884;border-color:#00a884}
+.alert-danger{--bs-alert-bg:#fde8df;--bs-alert-border-color:#f5c6b4;--bs-alert-color:#7a2a08}
+.alert-success{--bs-alert-bg:#e6f6f1;--bs-alert-border-color:#cfe9e0;--bs-alert-color:#075e54}
+.side .foot .btn{--bs-btn-color:#fff;--bs-btn-border-color:rgba(255,255,255,.4);--bs-btn-hover-bg:rgba(255,255,255,.12);--bs-btn-hover-border-color:#fff;--bs-btn-hover-color:#fff}
 :root{--g:#00a884;--g-dark:#075e54;--g-deep:#04362f;--g-tint:#e6f6f1;--g-line:#cfe9e0;--ink:#17332c;--muted:#5f726c;--orange:#ff9800;--brown:#8b5a2b;--bad:#c2410c;--bg:#f2f8f5}
-*{box-sizing:border-box}
 body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.45}
 h1,h2,h3{color:var(--g-dark);margin:0 0 .4rem;letter-spacing:-.01em}
 a{color:#00806a}
+th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td,th{vertical-align:top}
 .hidden{display:none!important}
 /* shell */
 .shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
@@ -15,7 +25,6 @@ a{color:#00806a}
 .side a.nl:hover{background:rgba(255,255,255,.08)}
 .side a.nl.on{background:rgba(0,168,132,.28);border-left-color:var(--g);color:#fff;font-weight:600}
 .foot{padding:.8rem 1.1rem;border-top:1px solid rgba(255,255,255,.14);font-size:.85rem}
-.foot button{margin-top:.5rem;width:100%}
 .main{min-width:0}
 .top{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.4rem;gap:1rem}
 .burger{display:none;background:none;border:0;font-size:1.6rem;color:var(--g-dark)}
@@ -25,20 +34,8 @@ a{color:#00806a}
 /* components */
 .card{background:#fff;border:1px solid var(--g-line);border-radius:1rem;padding:1.1rem;margin-bottom:1rem;box-shadow:0 4px 14px rgba(6,60,48,.06)}
 .card h3{font-size:1.05rem}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem}
-label{display:block;font-size:.85rem;font-weight:600;margin:.5rem 0 .2rem}
-input,select,textarea{width:100%;padding:.55rem .7rem;border:1px solid #b9d6cb;border-radius:.6rem;font:inherit;background:#fff}
-input:focus,select:focus,textarea:focus{outline:2px solid rgba(0,168,132,.35);border-color:var(--g)}
-button,.btn{display:inline-block;background:var(--g);color:#fff;border:0;border-radius:.6rem;padding:.55rem 1rem;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
-button:hover,.btn:hover{background:#00906f}
-button.ghost{background:#fff;color:#00806a;border:1px solid var(--g)}
-button.warn{background:var(--bad)}
-button.sm{padding:.25rem .6rem;font-size:.85rem}
-.side .foot button{background:transparent;border:1px solid rgba(255,255,255,.4)}
-table{width:100%;border-collapse:collapse;font-size:.92rem}
-th{text-align:left;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
-td,th{padding:.5rem .55rem;border-bottom:1px solid #e3f0ea;vertical-align:top}
-.scroll{overflow-x:auto}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem}
+td,.scroll{overflow-x:auto}
 .pill{display:inline-block;border-radius:2rem;padding:.1rem .6rem;font-size:.75rem;font-weight:700;background:var(--g-tint);color:#00806a}
 .pill.NOTIFIED{background:#eef2f0;color:#51655e}.pill.ITEMS_RECORDED{background:#fff3dc;color:#9a5b00}.pill.RETURNED{background:#fde8df;color:var(--bad)}
 .pill.APPROVED{background:var(--g-tint);color:#00806a}.pill.COMPLETED{background:#d6f1e6;color:#056a4f}.pill.CANCELLED{background:#eee;color:#777}

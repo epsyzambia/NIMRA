@@ -1,5 +1,4 @@
--- NIMRA on MySQL 8 (also works on MariaDB 10.5+). Reached from the Worker through Cloudflare Hyperdrive.
--- Run once:   mysql -h HOST -u USER -p nimra < migrations/0001_init.sql
+-- NIMRA tables for TiDB Cloud Serverless (also valid MySQL 8). Run once in the TiDB SQL Editor after CREATE DATABASE nimra; USE nimra;
 -- utf8mb4_unicode_ci is case-insensitive, so "A4 Paper" and "a4 paper" are the same item name.
 -- No FOREIGN KEY constraints (TiDB-friendly); the Worker checks every link itself.
 -- Times are stored in UTC (the Worker sets the session time zone to +00:00).
@@ -147,7 +146,7 @@ CREATE TABLE IF NOT EXISTS audit_log(
   KEY ix_audit_entity (entity, entity_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- research PDFs (max 5 MB each, checked by the Worker). Needs max_allowed_packet of at least 8 MB on the server (MySQL 8 default is 64 MB).
+-- research PDFs (max 2 MB each, checked by the Worker). Stored as bytes; the Worker sends them as hex text.
 CREATE TABLE IF NOT EXISTS price_files(
   price_id INT UNSIGNED NOT NULL PRIMARY KEY,
   data LONGBLOB NOT NULL

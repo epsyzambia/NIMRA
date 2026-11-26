@@ -1,19 +1,22 @@
-// NIMRA procurement API for Cloudflare Workers.  MySQL (through Hyperdrive) = database, including the research PDFs.
+// NIMRA procurement API for Cloudflare Workers.  TiDB Cloud Serverless (MySQL-compatible, over HTTPS) = database, including the research PDFs.
 import { openDb } from './db.js';
 import { HttpError, bad, forbidden, notFound, json, randomHex, sha256, hashPin, timingSafeEqual, normalisePhone, parseCookies, round2, num, text } from './lib.js';
 
 const SESSION_DAYS = 14;
 const MAX_FAILS = 5;
 const LOCK_MINUTES = 15;
-const MAX_PDF = 5 * 1024 * 1024;
-// PDFs are kept in the database (table price_files), so no file-storage service is needed.
+const MAX_PDF = 2 * 1024 * 1024;
+// PDFs are kept in the database (table price_files). The database speaks HTTP, so the file travels as hex text: UNHEX(?) in, HEX(data) out.
 async function readPdf(file) {
-  if (file.size > MAX_PDF) throw bad('The PDF is larger than 5 MB.');
+  if (file.size > MAX_PDF) throw bad('The PDF is larger than 2 MB.');
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) throw bad('Attach a PDF file.');
-  const data = Buffer.from(await file.arrayBuffer());
-  if (data.subarray(0, 5).toString('latin1') !== '%PDF-') throw bad('That file is not a PDF.');
-  return data;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') throw bad('That file is not a PDF.');
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += 8192) parts.push(Array.from(bytes.subarray(i, i + 8192), (x) => x.toString(16).padStart(2, '0')).join(''));
+  return parts.join('');
 }
+const fromHex = (hex) => { const out = new Uint8Array(hex.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16); return out; };
 
 // ---------------------------------------------------------------- routing
 const routes = [];
@@ -83,7 +86,7 @@ async function currentUser(ctx, roles) {
   const row = await ctx.db.prepare(
     `SELECT u.id, u.name, u.role, u.org_id, o.name AS org_name, o.active AS org_active, u.active
        FROM sessions s JOIN users u ON u.id = s.user_id JOIN organisations o ON o.id = u.org_id
-      WHERE s.token_hash = ? AND s.expires_at > NOW()`).bind(await sha256(sid)).first();
+      WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP()`).bind(await sha256(sid)).first();
   if (!row || !row.active || !row.org_active) throw new HttpError(401, 'Please sign in.');
   if (roles && !roles.includes(row.role)) throw forbidden();
   ctx.user = row;
@@ -146,7 +149,7 @@ route('POST', '/api/login', async (ctx) => {
   const token = randomHex(32);
   const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString().replace('T', ' ').slice(0, 19);
   await ctx.db.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').bind(await sha256(token), u.id, expires).run();
-  await ctx.db.prepare("DELETE FROM sessions WHERE expires_at < NOW()").run();
+  await ctx.db.prepare("DELETE FROM sessions WHERE expires_at < UTC_TIMESTAMP()").run();
   ctx.setCookie = cookie(token, SESSION_DAYS * 86400, ctx.env);
   return json({ ok: true });
 });
@@ -311,7 +314,7 @@ route('POST', '/api/notices/:id/items', authed(['Supplier'], async (ctx) => {
   if (over.length) throw bad(`${n.institution} allows a margin of at most ${limit}% over your cost. Over the limit: ${over.join(', ')}.`);
   const stmts = [ctx.db.prepare('DELETE FROM quote_lines WHERE notice_id=?').bind(n.id),
     ...lines.map((l) => ctx.db.prepare('INSERT INTO quote_lines(notice_id,description,quantity,unit_cost,unit_price,barcode) VALUES(?,?,?,?,?,?)').bind(n.id, ...l)),
-    ctx.db.prepare("UPDATE notices SET status='ITEMS_RECORDED', quote_version=quote_version+1, items_recorded_at=NOW() WHERE id=?").bind(n.id),
+    ctx.db.prepare("UPDATE notices SET status='ITEMS_RECORDED', quote_version=quote_version+1, items_recorded_at=UTC_TIMESTAMP() WHERE id=?").bind(n.id),
     ctx.db.prepare("INSERT INTO notice_events(notice_id,kind,comment,user_id) VALUES(?, 'ITEMS_RECORDED', ?, ?)").bind(n.id, text(b.comment, 'Comment', { required: false, max: 500 }), ctx.user.id)];
   await ctx.db.batch(stmts);
   const researched = await ctx.db.prepare(`SELECT COUNT(*) AS c FROM reference_prices WHERE published=1 AND notice_id=?`).bind(n.id).first();
@@ -341,7 +344,7 @@ route('POST', '/api/notices/:id/approve', authed(['Admin'], async (ctx) => {
   if (n.status !== 'ITEMS_RECORDED') throw bad('Only items that are waiting for review can be approved.');
   const b = await body(ctx);
   await ctx.db.batch([
-    ctx.db.prepare("UPDATE notices SET status='APPROVED', approved_at=NOW() WHERE id=?").bind(n.id),
+    ctx.db.prepare("UPDATE notices SET status='APPROVED', approved_at=UTC_TIMESTAMP() WHERE id=?").bind(n.id),
     ctx.db.prepare("INSERT INTO notice_events(notice_id,kind,comment,user_id) VALUES(?, 'APPROVED', ?, ?)").bind(n.id, text(b.comment, 'Comment', { required: false, max: 500 }), ctx.user.id)]);
   await notifyOrg(ctx.db, n.institution_id, 'APPROVED', `NIMRA approved the items for "${n.title}".`, `#/notice/${n.id}`);
   await notifyOrg(ctx.db, n.supplier_id, 'APPROVED', `NIMRA approved your items for "${n.title}".`, `#/notice/${n.id}`);
@@ -353,7 +356,7 @@ route('POST', '/api/notices/:id/complete', authed(['Institution'], async (ctx) =
   const n = await loadNotice(ctx, Number(ctx.params.id));
   if (n.status !== 'APPROVED') throw bad('Only an approved procurement can be completed.');
   await ctx.db.batch([
-    ctx.db.prepare("UPDATE notices SET status='COMPLETED', completed_at=NOW() WHERE id=?").bind(n.id),
+    ctx.db.prepare("UPDATE notices SET status='COMPLETED', completed_at=UTC_TIMESTAMP() WHERE id=?").bind(n.id),
     ctx.db.prepare("INSERT INTO notice_events(notice_id,kind,user_id) VALUES(?, 'COMPLETED', ?)").bind(n.id, ctx.user.id)]);
   await notifyOrg(ctx.db, n.supplier_id, 'COMPLETED', `${n.institution} marked "${n.title}" as completed.`, `#/notice/${n.id}`);
   await audit(ctx.db, ctx.user.id, 'NOTICE_COMPLETED', 'notices', n.id, null);
@@ -408,7 +411,7 @@ route('POST', '/api/prices', authed(['Admin'], async (ctx) => {
     `INSERT INTO reference_prices(notice_id,item_name,unit,unit_price,source_name,source_link,source_contact,notes,published,file_name,added_by)
      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(noticeId, itemName, text(f.unit, 'Unit', { max: 30, required: false }), unitPrice, sourceName, sourceLink, sourceContact,
       text(f.notes, 'Notes', { max: 500, required: false }), published, fileName, ctx.user.id).run();
-  if (pdf) await ctx.db.prepare('INSERT INTO price_files(price_id,data) VALUES(?,?)').bind(r.meta.last_row_id, pdf).run();
+  if (pdf) await ctx.db.prepare('INSERT INTO price_files(price_id,data) VALUES(?,UNHEX(?))').bind(r.meta.last_row_id, pdf).run();
   if (noticeId && published) {
     const n = await ctx.db.prepare('SELECT institution_id, title FROM notices WHERE id=?').bind(noticeId).first();
     await notifyOrg(ctx.db, n.institution_id, 'RESEARCH', `Market research was published for "${n.title}".`, `#/notice/${noticeId}`);
@@ -431,7 +434,7 @@ route('POST', '/api/prices/:id/file', authed(['Admin'], async (ctx) => {
   if (!p) throw notFound();
   const pdf = await readPdf(file);
   await ctx.db.batch([
-    ctx.db.prepare('REPLACE INTO price_files(price_id,data) VALUES(?,?)').bind(p.id, pdf),
+    ctx.db.prepare('REPLACE INTO price_files(price_id,data) VALUES(?,UNHEX(?))').bind(p.id, pdf),
     ctx.db.prepare('UPDATE reference_prices SET file_name=? WHERE id=?').bind(file.name.slice(-120), p.id)]);
   return json({ ok: true });
 }));
@@ -440,9 +443,9 @@ route('GET', '/api/prices/:id/file', authed(null, async (ctx) => {
   const p = await ctx.db.prepare('SELECT file_name, published FROM reference_prices WHERE id=?').bind(ctx.params.id).first();
   if (!p || !p.file_name) throw notFound('No document.');
   if (ctx.user.role !== 'Admin' && !p.published) throw notFound('No document.');
-  const f = await ctx.db.prepare('SELECT data FROM price_files WHERE price_id=?').bind(ctx.params.id).first();
+  const f = await ctx.db.prepare('SELECT HEX(data) AS hex FROM price_files WHERE price_id=?').bind(ctx.params.id).first();
   if (!f) throw notFound('The file is missing.');
-  return new Response(f.data, { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${p.file_name.replace(/[^\w.\- ]/g, '_')}"`, 'cache-control': 'private, max-age=300', 'x-content-type-options': 'nosniff' } });
+  return new Response(fromHex(f.hex), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${p.file_name.replace(/[^\w.\- ]/g, '_')}"`, 'cache-control': 'private, max-age=300', 'x-content-type-options': 'nosniff' } });
 }));
 
 // ---------------------------------------------------------------- institution settings and wastage
@@ -500,6 +503,6 @@ route('GET', '/api/notifications', authed(null, async (ctx) => {
   return json(results);
 }));
 route('POST', '/api/notifications/read', authed(null, async (ctx) => {
-  await ctx.db.prepare("UPDATE notifications SET read_at=NOW() WHERE user_id=? AND read_at IS NULL").bind(ctx.user.id).run();
+  await ctx.db.prepare("UPDATE notifications SET read_at=UTC_TIMESTAMP() WHERE user_id=? AND read_at IS NULL").bind(ctx.user.id).run();
   return json({ ok: true });
 }));
