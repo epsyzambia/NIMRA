@@ -57,7 +57,7 @@ export default {
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message }, e.status, cors);
       console.error(e);
-      return json({ error: 'Something went wrong on the server.' }, 500, cors);
+      return json({ error: String(e?.message || e) }, 500, cors);
     } finally {
       // close the database connection after the response has been sent
       if (conn) { const p = conn.close(); if (execCtx?.waitUntil) execCtx.waitUntil(p); else await p; }
